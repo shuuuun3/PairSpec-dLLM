@@ -18,6 +18,7 @@
 import argparse
 import logging
 import multiprocessing as mp
+import queue
 import time
 from typing import Dict, Optional, Tuple
 
@@ -165,8 +166,11 @@ def _pairspec_generate(
                 threshold=args.threshold,
                 generator=generator_name,
             )
-            request_queue.put(req)
-            pending_blocks.add(block_id)
+            try:
+                request_queue.put_nowait(req)
+                pending_blocks.add(block_id)
+            except queue.Full:
+                LOGGER.debug('Draft queue full; skip block %s', block_id)
 
         enqueue(0, prompt, prefix_hash)
 

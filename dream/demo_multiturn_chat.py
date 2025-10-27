@@ -2,6 +2,7 @@
 import argparse
 import logging
 import time
+import queue
 from typing import Dict, Optional, Tuple
 
 import torch
@@ -110,8 +111,11 @@ def _dream_pairspec_generate(
                 threshold=args.threshold,
                 generator=generator_name,
             )
-            request_queue.put(req)
-            pending_blocks.add(block_id)
+            try:
+                request_queue.put_nowait(req)
+                pending_blocks.add(block_id)
+            except queue.Full:
+                LOGGER.debug('Draft queue full; skip block %s', block_id)
 
         enqueue(0, input_ids, prefix_hash)
         current_ids = input_ids.clone()

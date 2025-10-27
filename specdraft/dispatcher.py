@@ -200,8 +200,6 @@ class DraftWorker(mp.Process):
         if self._model is not None:
             return
         torch.set_grad_enabled(False)
-        if self.device.type == "cuda":
-            torch.cuda.set_device(self.device)
         if self.backend == "dream":
             self._load_dream()
         else:
