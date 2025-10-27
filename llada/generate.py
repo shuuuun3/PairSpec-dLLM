@@ -20,7 +20,8 @@ import numpy as np
 import torch.nn.functional as F
 import os
 from transformers import AutoTokenizer, AutoModel
-from model.modeling_llada import LLaDAModelLM
+
+from .model.modeling_llada import LLaDAModelLM
 
 def add_gumbel_noise(logits, temperature):
     '''
@@ -128,7 +129,7 @@ def generate_with_prefix_cache(model, prompt, steps=128, gen_length=128, block_l
     steps = steps // num_blocks
 
     nfe = 0
-            
+
     for num_block in range(num_blocks):
         current_block_start = prompt.shape[1] + num_block * block_length
         current_block_end = current_block_start + block_length
@@ -152,10 +153,10 @@ def generate_with_prefix_cache(model, prompt, steps=128, gen_length=128, block_l
             new_past_key_values.append(())
             for j in range(len(past_key_values[i])):
                 new_past_key_values[i] += (past_key_values[i][j][:, :, :current_block_start],)
-        
+
         past_key_values = new_past_key_values
         nfe += 1
-        
+
         i = 1
         while True:
             if (x[:, current_block_start:current_block_end] == mask_id).sum() == 0:
@@ -170,13 +171,13 @@ def generate_with_prefix_cache(model, prompt, steps=128, gen_length=128, block_l
             x0 = torch.argmax(logits_with_noise, dim=-1) # b, l
 
             if factor is None:
-                x0, transfer_index = get_transfer_index(logits, temperature, remasking, mask_index, 
+                x0, transfer_index = get_transfer_index(logits, temperature, remasking, mask_index,
                                                 x[:, current_block_start:], num_transfer_tokens[:, i] if threshold is None else None, threshold)
             else:
-                x0, transfer_index = get_transfer_index_dynamic(logits, temperature, remasking, mask_index, 
+                x0, transfer_index = get_transfer_index_dynamic(logits, temperature, remasking, mask_index,
                                                 x[:, current_block_start:], None, factor)
             x[:, current_block_start:][transfer_index] = x0[transfer_index]
-            
+
             i += 1
 
 
@@ -207,7 +208,7 @@ def generate_with_dual_cache(model, prompt, steps=128, gen_length=128, block_len
     assert steps % num_blocks == 0
     steps = steps // num_blocks
 
-    nfe = 0  
+    nfe = 0
     for num_block in range(num_blocks):
         current_block_start = prompt.shape[1] + num_block * block_length
         current_block_end = current_block_start + block_length
@@ -239,10 +240,10 @@ def generate_with_dual_cache(model, prompt, steps=128, gen_length=128, block_len
             logits = model(x[:, current_block_start:current_block_end], past_key_values=past_key_values, use_cache=True, replace_position=replace_position).logits
 
             if factor is None:
-                x0, transfer_index = get_transfer_index(logits, temperature, remasking, mask_index, 
+                x0, transfer_index = get_transfer_index(logits, temperature, remasking, mask_index,
                                                 x[:, current_block_start:current_block_end], num_transfer_tokens[:, i] if threshold is None else None, threshold)
             else:
-                x0, transfer_index = get_transfer_index_dynamic(logits, temperature, remasking, mask_index, 
+                x0, transfer_index = get_transfer_index_dynamic(logits, temperature, remasking, mask_index,
                                                 x[:, current_block_start:current_block_end], None, factor)
             x[:, current_block_start:current_block_end][transfer_index] = x0[transfer_index]
             i += 1
@@ -262,7 +263,7 @@ def get_transfer_index(logits, temperature, remasking, mask_index, x, num_transf
         x0_p = torch.rand((x0.shape[0], x0.shape[1]), device=x0.device)
     else:
         raise NotImplementedError(remasking)
-    
+
     x0 = torch.where(mask_index, x0, x)
     confidence = torch.where(mask_index, x0_p, -np.inf)
 
@@ -289,13 +290,13 @@ def get_transfer_index_dynamic(logits, temperature, remasking, mask_index, x, nu
         x0_p = torch.rand((x0.shape[0], x0.shape[1]), device=x0.device)
     else:
         raise NotImplementedError(remasking)
-    
+
     x0 = torch.where(mask_index, x0, x)
     confidence = torch.where(mask_index, x0_p, -np.inf)
 
     transfer_index = torch.zeros_like(x0, dtype=torch.bool, device=x0.device)
     num_transfer_tokens = mask_index.sum(dim=1, keepdim=True)
-    
+
     for j in range(confidence.shape[0]):
         ns=list(range(1,num_transfer_tokens[j]+1))
         es=[factor/(n+1) for n in ns]
